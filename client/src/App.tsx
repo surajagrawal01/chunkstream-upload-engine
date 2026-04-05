@@ -1,14 +1,13 @@
-import './App.css'
+import UploadBox from './modules/upload/components/UploadBox'
+import Layout from './shared/components/Layout'
 
 function App() {
 
   return (
     <>
-      <section id="center">
-        <div>
-          <h1>Resumable File Upload System</h1>
-        </div>
-      </section>
+      <Layout>
+        <UploadBox />
+      </Layout>
     </>
   )
 }
