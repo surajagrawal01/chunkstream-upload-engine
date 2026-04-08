@@ -7,6 +7,8 @@ export const handleFileSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
     const arrayFiles = Array.from(files)
     console.log("🚀 ~ handleMultipleFileSelect ~ arrayFiles:", arrayFiles)
     const processedFiles: UploadFile[] = []
+    const apiRequestForm = []
+
     for (let i = 0; i < arrayFiles.length; i++) {
         const file = arrayFiles[i]
         const chunks = createChunks(file);
@@ -19,6 +21,14 @@ export const handleFileSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
             chunks: chunks
         })
 
+        apiRequestForm.push({
+            fileId: `file - ${file?.name} - ${Date.now()} - ${Math.random().toString(36).slice(2)}`,
+            fileName: file?.name,
+            totalChunks: chunks.length,
+            relativePath: file?.webkitRelativePath || file?.name,
+        })
     }
     console.log("🚀 ~ handleFileSelection ~ processedFiles:", processedFiles)
+    console.log("🚀 ~ handleFileSelection ~ apiRequestForm:", apiRequestForm)
+
 }
