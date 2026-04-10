@@ -5,7 +5,7 @@ export interface UploadChunk {
     end: number
 }
 
-export interface UploadFile {
+export interface ProcessedFile {
     fileId: string,
     uploadId?: string,
     name: string,
@@ -13,4 +13,11 @@ export interface UploadFile {
     path?: string | "",
     totalChunks: number,
     chunks: UploadChunk[]
+}
+
+export interface UploadFile {
+    fileId: string,
+    totalChunks: number,
+    relativePath: string,
+    fileName: string
 }
