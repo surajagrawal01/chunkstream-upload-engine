@@ -1,4 +1,4 @@
-import { handleFileSelection } from "../hooks/useUpload";
+import { handleFileUpload, handleFileSelection } from "../hooks/useUpload";
 
 const UploadBox = () => {
 
@@ -18,6 +18,7 @@ const UploadBox = () => {
                 }}
                 onChange={handleFileSelection}
             />
+            <button onClick={handleFileUpload}>Upload</button>
         </>
     )
 }

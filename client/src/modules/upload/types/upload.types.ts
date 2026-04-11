@@ -8,7 +8,7 @@ export interface UploadChunk {
 export interface ProcessedFile {
     fileId: string,
     uploadId?: string,
-    name: string,
+    fileName: string,
     size: number,
     path?: string | "",
     totalChunks: number,
