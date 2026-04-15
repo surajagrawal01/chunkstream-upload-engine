@@ -26,4 +26,5 @@ export interface mergeChunkDTO {
     uploadId: string
     fileName: string
     totalChunks: number
+    basePath: string
 }

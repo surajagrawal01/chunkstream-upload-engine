@@ -89,7 +89,7 @@ export const uploadChunk = async (data: uploadChunkDTO) => {
         console.log(`Map`, fileUploadSession.receivedChunks)
 
         if (fileUploadSession.receivedChunks.size == fileUploadSession.totalChunks) {
-            const result = mergeChunks({ fileId: data?.fileId, uploadId: data?.uploadId, fileName: fileUploadSession?.fileName, totalChunks: fileUploadSession.totalChunks })
+            const result = mergeChunks({ fileId: data?.fileId, basePath: basePath, uploadId: data?.uploadId, fileName: fileUploadSession?.fileName, totalChunks: fileUploadSession.totalChunks })
             console.log("🚀 ~ uploadChunk ~ result:", result)
         }
 
@@ -104,4 +104,33 @@ export const uploadChunk = async (data: uploadChunkDTO) => {
 };
 
 
-export const uploadService = { initUpload, uploadChunk };
+export const mergeChunks = async (data: mergeChunkDTO) => {
+    console.log("🚀 ~ mergeChunks ~ data:", data)
+
+    const finalPath = `uploads/${data?.uploadId}/${data?.basePath}/${data?.fileId}/${data?.fileName}`
+    const writeStream = fsNonPromise.createWriteStream(finalPath);
+
+
+    for (let i = 0; i < data?.totalChunks; i++) {
+        const chunkPath = `uploads/${data?.uploadId}/${data?.basePath}/${data?.fileId}/chunks/chunk-${i}`
+        console.log("Chunk Index", i)
+        const readStream = fsNonPromise.createReadStream(chunkPath);
+
+        await new Promise((resolve, reject) => {
+            readStream
+                .on("end", resolve)
+                .on("error", reject)
+                .pipe(writeStream, { end: false })
+        })
+    }
+
+    writeStream.end();
+
+    return {
+        status: "Merge Done",
+        fileId: data?.fileId
+    }
+}
+
+
+export const uploadService = { initUpload, uploadChunk, mergeChunks };
