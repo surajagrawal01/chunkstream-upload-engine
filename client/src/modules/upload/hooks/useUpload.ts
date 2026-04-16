@@ -1,8 +1,11 @@
+import type { ChunkMeta, UploadStoreFile } from "../../../shared/types/types";
+import { uploadStore } from "../../../store/uploadStore";
 import { handleChunkUpload, initUpload } from "../api/uploadApi";
 import type { ProcessedFile, UploadFile } from "../types/upload.types";
 import { createChunks } from "../utils/helper";
 const processedFiles: ProcessedFile[] = []
 const apiRequestForm: UploadFile[] = []
+const uploadStoreFiles: UploadStoreFile[] = []
 let uploadId: string | undefined = undefined
 
 export const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -31,9 +34,31 @@ export const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>
                 relativePath: file?.webkitRelativePath || file?.name,
                 fileName: file?.name
             })
+
+            const processedChunks: Record<number, ChunkMeta> = {}
+            for (let i = 0; i < chunks.length; i++) {
+                processedChunks[i] = {
+                    index: i,
+                    retries: 3,
+                    status: 'pending'
+                }
+            }
+
+            uploadStoreFiles.push({
+                fileId,
+                file: arrayFiles[i],
+                status: 'pending',
+                progress: 0,
+                uploadedChunks: 0,
+                totalChunks: chunks.length,
+                chunksMeta: processedChunks
+            })
         }
 
         uploadId = await initUpload(apiRequestForm)
+        if (uploadId) {
+            uploadStore.getState().addFiles(uploadStoreFiles);
+        }
 
         console.log("🚀 ~ handleFileSelection ~ processedFiles:", processedFiles)
         console.log("🚀 ~ handleFileSelection ~ apiRequestForm:", apiRequestForm)
@@ -49,8 +74,8 @@ export const handleFileUpload = async () => {
     try {
         for (let i = 0; i < processedFiles.length; i++) {
             if (uploadId) {
-                const res = await handleChunkUpload(processedFiles[i], uploadId)
-                console.log("🚀 ~ handleFileUpload ~ res:", res)
+                const data = await handleChunkUpload(processedFiles[i], uploadId)
+                console.log("🚀 ~ handleFileUpload ~ res:", data)
             }
         }
     } catch (err) {
