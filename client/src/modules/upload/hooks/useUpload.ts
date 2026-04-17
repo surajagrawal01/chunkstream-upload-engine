@@ -13,7 +13,6 @@ export const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>
         if (!e.target.files) return null;
         const files = e.target.files;
         const arrayFiles = Array.from(files)
-        console.log("🚀 ~ handleMultipleFileSelect ~ arrayFiles:", arrayFiles)
 
         for (let i = 0; i < arrayFiles.length; i++) {
             const file = arrayFiles[i]
@@ -73,6 +72,7 @@ export const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>
 export const handleFileUpload = async () => {
     try {
         for (let i = 0; i < processedFiles.length; i++) {
+            console.log("here")
             if (uploadId) {
                 const data = await handleChunkUpload(processedFiles[i], uploadId)
                 console.log("🚀 ~ handleFileUpload ~ res:", data)
