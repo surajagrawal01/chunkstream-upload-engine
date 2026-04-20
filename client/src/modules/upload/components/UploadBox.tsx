@@ -58,7 +58,7 @@ const UploadBox = () => {
 
             <div className="space-y-4">
                 {storeFiles.map((file, index) => (
-                    <div key={index} className="bg-white border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <div key={index} className={`bg-white border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow ${file?.status === "failed" && 'border-red-500'}`}>
                         <div className="flex flex-wrap items-center justify-between gap-4 mb-3">
                             <div className="flex-1 min-w-0">
                                 <h3 className="text-sm font-bold text-gray-900 truncate">
@@ -71,7 +71,7 @@ const UploadBox = () => {
 
                             <div className="flex items-center gap-3">
                                 <span className={`px-2 py-1 rounded-full text-[10px] font-uppercase tracking-wider font-bold ${file?.status === 'completed' ? 'bg-green-100 text-green-700' :
-                                    file?.status === 'uploading' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                                    file?.status === 'uploading' ? 'bg-blue-100 text-blue-700' : file?.status === "failed" ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'
                                     }`}>
                                     {file?.status?.toUpperCase()}
                                 </span>
@@ -83,7 +83,7 @@ const UploadBox = () => {
 
                         <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
                             <div
-                                className={`h-full transition-all duration-300 ease-out ${file?.status === 'completed' ? 'bg-green-500' : 'bg-blue-500'
+                                className={`h-full transition-all duration-300 ease-out ${file?.status === 'completed' ? 'bg-green-500' : file?.status === "failed" ? 'bg-red-500' : 'bg-blue-500'
                                     }`}
                                 style={{ width: `${file?.progress}%` }}
                             ></div>
