@@ -16,28 +16,45 @@ export const initUpload = async (data: UploadFile[]) => {
 export const handleChunkUpload = async (processedFile: ProcessedFile, uploadId: string) => {
     try {
 
+        uploadStore.getState().updateFileStatus(processedFile?.fileId, 'uploading')
         for (let i = 0; i < processedFile.chunks.length; i++) {
-            uploadStore.getState().updateFileStatus(processedFile?.fileId, 'uploading')
-            const formData = new FormData();
 
-            formData.append("file", processedFile.chunks[i].blob, "chunk.bin");// 👈 actual chunk
-            formData.append("fileId", processedFile?.fileId);
-            formData.append("uploadId", uploadId);
-            formData.append("chunkIndex", String(i));
-            formData.append("fileName", processedFile?.fileName)
+            let attempt = 0
+            const MAX_RETRIES = 3
 
-            const response = await axios.post(
-                "http://localhost:5000/api/upload/chunk",
-                formData
-            );
-            const data = response?.data
+            while (attempt < MAX_RETRIES) {
+                const formData = new FormData();
 
-            if (data?.fileId) {
-                uploadStore.getState().updateChunk(data?.fileId, data?.index, { index: data?.index, status: 'completed' })
+                formData.append("file", processedFile.chunks[i].blob, "chunk.bin");// 👈 actual chunk
+                formData.append("fileId", processedFile?.fileId);
+                formData.append("uploadId", uploadId);
+                formData.append("chunkIndex", String(i));
+                formData.append("fileName", processedFile?.fileName)
+                try {
+                    const response = await axios.post(
+                        "http://localhost:5000/api/upload/chunk",
+                        formData
+                    );
+                    const data = response?.data;
 
+                    uploadStore.getState().updateChunk(data?.fileId, data?.index, { index: data?.index, status: 'completed' })
+
+                    break
+
+                } catch (err) {
+                    attempt++
+
+                    uploadStore.getState().updateChunk(processedFile?.fileId, i, { index: i, status: 'failed', retries: attempt })
+                    console.error("❌ Error:", err);
+                    if (attempt === MAX_RETRIES) {
+                        throw new Error("Chunk failed max retries")
+                    }
+
+                    //  Delay between retries
+                    await new Promise(res => setTimeout(res, 300))
+
+                }
             }
-            console.log("✅ Response:", response.data);
-
         }
         uploadStore.getState().updateFileStatus(processedFile?.fileId, 'completed')
         return {
@@ -46,6 +63,9 @@ export const handleChunkUpload = async (processedFile: ProcessedFile, uploadId: 
         }
 
     } catch (err) {
-        console.error("❌ Error:", err);
+        uploadStore.getState().updateFileStatus(processedFile.fileId, "failed")
+
+        // rethrow for setting file into failure
+        throw err
     }
 };

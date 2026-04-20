@@ -1,6 +1,6 @@
-export type ChunkStatus = 'pending' | 'uploading' | 'completed' | 'failure';
+export type ChunkStatus = 'pending' | 'uploading' | 'completed' | 'failed';
 
-export type UploadStatus = 'pending' | 'uploading' | 'completed' | 'pending';
+export type UploadStatus = 'pending' | 'uploading' | 'completed' | 'failed';
 
 export interface ChunkMeta {
     status: ChunkStatus,
