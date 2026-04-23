@@ -61,11 +61,43 @@ export const initUpload = async (data: initUploadDTO[]) => {
     return { uploadId };
 };
 
-export const uploadChunk = async (data: uploadChunkDTO) => {
-    const uploadSessionById = uploadSessions.get(data.uploadId);
+//---> For Testing
+// const failureTracker = new Map<string, number>()
+// let hasSimulatedFailure = false;
 
+export const uploadChunk = async (data: uploadChunkDTO) => {
+    // <----- For Testing ----->
+    // const key = `${data.fileId}-${data.chunkIndex}`
+    // const currentFailures = failureTracker.get(key) || 0
+
+
+    // if (data.chunkIndex === 2 && currentFailures < 1) {
+    //     failureTracker.set(key, currentFailures + 1)
+
+    //     console.log("Simulated single failure")
+    //     throw new Error("Simulated failure once")
+    // }
+
+    // if (!hasSimulatedFailure && currentFailures < 3 && data.chunkIndex === 3) {
+    //     failureTracker.set(key, currentFailures + 1)
+
+    //     console.log("Simulating failure for first file only")
+
+    //     if (currentFailures + 1 === 3) {
+    //         hasSimulatedFailure = true // ✅ TURN OFF after first file fails
+    //     }
+
+    //     throw new Error("Simulated failure")
+    // }
+    // <----- For Testing ----->
+
+    const uploadSessionById = uploadSessions.get(data.uploadId);
     const filesMap = uploadSessionById.files;
     const fileUploadSession = filesMap.get(data?.fileId)
+
+    if (!uploadSessionById || !fileUploadSession) {
+        throw new Error("Invalid upload session or fileId")
+    }
 
     const basePath = fileUploadSession.relativePath.substring(
         0,
@@ -79,18 +111,28 @@ export const uploadChunk = async (data: uploadChunkDTO) => {
     // ✅ Prevent duplicate chunk write
     if (!fileUploadSession.receivedChunks.has(data.chunkIndex)) {
         fileUploadSession.receivedChunks.add(data.chunkIndex);
+        try {
+            await fs.writeFile(
+                `${dirPath}/chunk-${data.chunkIndex}`,
+                data.chunk
+            );
+        } catch (err) {
+            console.error("Chunk write failed", err)
+            throw err
+        }
 
-        await fs.writeFile(
-            `${dirPath}/chunk-${data.chunkIndex}`,
-            data.chunk
-        );
 
-        console.log(`✅ Chunk ${data.chunkIndex} saved`);
-        console.log(`Map`, fileUploadSession.receivedChunks)
+        // console.log(`✅ Chunk ${data.chunkIndex} saved`);
+        // console.log(`Map`, fileUploadSession.receivedChunks)
 
         if (fileUploadSession.receivedChunks.size == fileUploadSession.totalChunks) {
-            const result = mergeChunks({ fileId: data?.fileId, basePath: basePath, uploadId: data?.uploadId, fileName: fileUploadSession?.fileName, totalChunks: fileUploadSession.totalChunks })
-            console.log("🚀 ~ uploadChunk ~ result:", result)
+            try {
+                const result = await mergeChunks({ fileId: data?.fileId, basePath: basePath, uploadId: data?.uploadId, fileName: fileUploadSession?.fileName, totalChunks: fileUploadSession.totalChunks })
+                console.log("🚀 ~ uploadChunk ~ result:", result)
+            } catch (err) {
+                console.error("Merge failed", err)
+                throw err
+            }
         }
 
     } else {
@@ -99,7 +141,8 @@ export const uploadChunk = async (data: uploadChunkDTO) => {
 
     return {
         status: "Upload Done",
-        index: data?.chunkIndex
+        index: data?.chunkIndex,
+        fileId: data?.fileId
     };
 };
 
