@@ -72,7 +72,6 @@ export const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>
 export const handleFileUpload = async () => {
     for (let i = 0; i < processedFiles.length; i++) {
         try {
-            console.log("here")
             if (uploadId) {
                 const data = await handleChunkUpload(processedFiles[i], uploadId)
                 console.log("🚀 ~ handleFileUpload ~ res:", data)

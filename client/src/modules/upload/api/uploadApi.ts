@@ -13,59 +13,117 @@ export const initUpload = async (data: UploadFile[]) => {
     }
 }
 
-export const handleChunkUpload = async (processedFile: ProcessedFile, uploadId: string) => {
-    try {
+const uploadSingleChunk = async (
+    processedFile: ProcessedFile,
+    chunkIndex: number,
+    uploadId: string
+) => {
+    let attempt = 0
+    const MAX_RETRIES = 3
 
-        uploadStore.getState().updateFileStatus(processedFile?.fileId, 'uploading')
-        for (let i = 0; i < processedFile.chunks.length; i++) {
+    while (attempt < MAX_RETRIES) {
+        const formData = new FormData()
 
-            let attempt = 0
-            const MAX_RETRIES = 3
+        formData.append("file", processedFile.chunks[chunkIndex].blob, "chunk.bin")
+        formData.append("fileId", processedFile.fileId)
+        formData.append("uploadId", uploadId)
+        formData.append("chunkIndex", String(chunkIndex))
+        formData.append("fileName", processedFile.fileName)
 
-            while (attempt < MAX_RETRIES) {
-                const formData = new FormData();
+        try {
+            const response = await axios.post(
+                "http://localhost:5000/api/upload/chunk",
+                formData
+            )
 
-                formData.append("file", processedFile.chunks[i].blob, "chunk.bin");// 👈 actual chunk
-                formData.append("fileId", processedFile?.fileId);
-                formData.append("uploadId", uploadId);
-                formData.append("chunkIndex", String(i));
-                formData.append("fileName", processedFile?.fileName)
-                try {
-                    const response = await axios.post(
-                        "http://localhost:5000/api/upload/chunk",
-                        formData
-                    );
-                    const data = response?.data;
+            const data = response.data
 
-                    uploadStore.getState().updateChunk(data?.fileId, data?.index, { index: data?.index, status: 'completed' })
+            uploadStore.getState().updateChunk(data.fileId, data.index, {
+                index: data.index,
+                status: "completed",
+            })
 
-                    break
+            return
+        } catch (err) {
+            console.log("error", err)
+            //To increase retries attempt for each chunk
+            attempt++
 
-                } catch (err) {
-                    attempt++
+            uploadStore.getState().updateChunk(processedFile.fileId, chunkIndex, {
+                index: chunkIndex,
+                status: "failed",
+                retries: attempt,
+            })
 
-                    uploadStore.getState().updateChunk(processedFile?.fileId, i, { index: i, status: 'failed', retries: attempt })
-                    console.error("❌ Error:", err);
-                    if (attempt === MAX_RETRIES) {
-                        throw new Error("Chunk failed max retries")
-                    }
+            //if reached to max_retries(3) then finally fail that particular file
+            if (attempt === MAX_RETRIES) {
+                throw new Error(`Chunk ${chunkIndex} failed`)
+            }
 
-                    //  Delay between retries
-                    await new Promise(res => setTimeout(res, 300))
+            // retrying after some delay 
+            await new Promise((res) => setTimeout(res, 300 * attempt))
+        }
+    }
+}
 
-                }
+
+export const handleChunkUpload = async (
+    processedFile: ProcessedFile,
+    uploadId: string
+) => {
+    const CONCURRENCY = 3
+    let active = 0
+    let currentIndex = 0
+    let hasError = false
+
+    //-> With promise 
+    //one central controller for the whole system whether the file is completely uploaded or rejected
+    //All flows are coordinated under ONE lifecycle, all async calls happen INSIDE
+    //All async actions coordinated under ONE resolve()
+
+    //-> With async-await
+    //with async await Multiple async chains running, But no single controller tracking all of them
+    //Execution splits into multiple independent flows, No central lifecycle tracking, spawns more async calls (not awaited)
+    //Multiple independent microtask chains, No single completion signal
+    // Chain A ──────┐
+    //               ├── ends early ❌
+    // Chain B ──────┤
+    // Chain C ──────┘ (still running)
+
+    return new Promise<Record<string, string>>((resolve, reject) => {
+        uploadStore.getState().updateFileStatus(processedFile.fileId, "uploading")
+
+        const next = () => {
+            //stop if error occurred to handle the final error (if chunk upload fails for more than three times)
+            if (hasError) return
+
+            // upload done
+            if (currentIndex >= processedFile.chunks.length && active === 0) {
+                uploadStore.getState().updateFileStatus(processedFile.fileId, "completed")
+                return resolve({
+                    message: "File Upload Done",
+                    fileName: processedFile?.fileName
+                })
+            }
+
+            // refill the slot -> for parallel uploads
+            while (active < CONCURRENCY && currentIndex < processedFile.chunks.length) {
+                const chunkIndex = currentIndex++
+                active++
+
+                uploadSingleChunk(processedFile, chunkIndex, uploadId)
+                    .catch((err) => {
+                        hasError = true
+                        uploadStore.getState().updateFileStatus(processedFile.fileId, "failed")
+                        reject(err)
+                    })
+                    .finally(() => {
+                        active--
+                        next() // refill slot
+                    })
             }
         }
-        uploadStore.getState().updateFileStatus(processedFile?.fileId, 'completed')
-        return {
-            status: 200,
-            message: `Chunks Uploaded Successful for - Name - ${processedFile.fileName} - Chunks - ${processedFile.chunks.length}`
-        }
 
-    } catch (err) {
-        uploadStore.getState().updateFileStatus(processedFile.fileId, "failed")
-
-        // rethrow for setting file into failure
-        throw err
-    }
-};
+        next()
+    })
+}

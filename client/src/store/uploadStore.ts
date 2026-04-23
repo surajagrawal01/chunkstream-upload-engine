@@ -32,14 +32,14 @@ export const uploadStore = create<UploadStore>((set) => ({
         }))
     },
     updateChunk: (fileId: string, chunkIndex: number, data: Partial<ChunkMeta>) => {
-        console.log({ fileId, chunkIndex, data }, "here inside store")
+        const isCompleted = data?.status === 'completed'
         set((state) => ({
             files: state.files.map((file) =>
                 file.fileId === fileId
                     ? {
                         ...file,
-                        uploadedChunks: file.uploadedChunks + 1,
-                        progress: Math.ceil(((file.uploadedChunks + 1) / file.totalChunks) * 100),
+                        uploadedChunks: isCompleted ? file.uploadedChunks + 1 : file.uploadedChunks,
+                        progress: isCompleted ? Math.ceil(((file.uploadedChunks + 1) / file.totalChunks) * 100) : file.progress,
                         chunksMeta: {
                             ...file.chunksMeta, [chunkIndex]: {
                                 ...file.chunksMeta[chunkIndex],
