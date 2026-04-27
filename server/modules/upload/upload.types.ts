@@ -16,9 +16,23 @@ export interface UploadResponse {
 }
 
 export interface initUploadModel {
+    uploadId: string,
+    fileId: string,
     fileName: string,
     totalChunks: number,
-    uploadId: string
+    status: 'pending' | 'uploading' | 'completed' | 'failed'
+}
+
+export interface updateFileUploadStatus {
+    uploadId: string,
+    fileId: string,
+    status: 'pending' | 'uploading' | 'completed' | 'failed'
+}
+
+export interface updateFileChunkStatus {
+    uploadId: string,
+    fileId: string,
+    chunkIndex: number
 }
 
 export interface mergeChunkDTO {

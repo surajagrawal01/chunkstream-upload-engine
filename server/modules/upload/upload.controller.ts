@@ -1,6 +1,22 @@
 import { Request, Response } from "express";
 import { uploadService } from "./upload.service.js";
 
+export const uploadStatus = async (req: Request, res: Response) => {
+    try {
+        const { uploadId } = req.body;
+        console.log("🚀 ~ uploadStatus ~ uploadId:", uploadId)
+
+        const statusResult = await uploadService.uploadStatus(uploadId);
+
+        return res.status(200).json(statusResult);
+    } catch (err) {
+        console.error("CONTROLLER ERROR:", err);
+        res.status(500).json({
+            error: (err as Error).message || "Something went wrong",
+        });
+    }
+};
+
 export const initUpload = async (req: Request, res: Response) => {
     try {
         const { data } = req.body;

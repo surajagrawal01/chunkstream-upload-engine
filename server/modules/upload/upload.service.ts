@@ -1,29 +1,11 @@
 import crypto from "crypto";
-import * as uploadRepo from "./upload.repository.js";
 import { initUploadDTO, mergeChunkDTO, uploadChunkDTO } from "./upload.types.js";
 import fs from "fs/promises";
 import fsNonPromise from "fs";
-
+import { getUploadStatus, updateFileUpload, updateUploadStatus, uploadRepo } from "./upload.repository.js";
 
 //in-memory upload session
 const uploadSessions = new Map();
-
-////Session is getting like this for each uploadIs there can be multiple files and
-//  based on relative path creating folders inside folderId folder inside uploads folder
-
-// {
-//   [uploadId]: {
-//     uploadId,
-//     files: {
-//       f1: {
-//         fileName: "video.mp4",
-//         relativePath: "video.mp4",
-//         totalChunks: 100,
-//         receivedChunks: new Set()
-//       }
-//     }
-//   }
-// };
 
 export const initUpload = async (data: initUploadDTO[]) => {
     const uploadId = crypto.randomUUID();
@@ -40,12 +22,6 @@ export const initUpload = async (data: initUploadDTO[]) => {
         const filePath = `/${relativePath.substring(0, relativePath.lastIndexOf("/"))}/${fileData?.fileId}`
         const folderPath = `${uploadId}${filePath}`
 
-        // await uploadRepo.createUpload({
-        //     uploadId,
-        //     fileName: fileData?.fileName,
-        //     totalChunks: fileData?.totalChunks,
-        // });
-
         session.files.set(fileData?.fileId, {
             fileName: fileData?.fileName,
             relativePath: fileData?.relativePath,
@@ -53,8 +29,16 @@ export const initUpload = async (data: initUploadDTO[]) => {
             receivedChunks: new Set()
         })
 
-
         await fs.mkdir(`uploads/${folderPath}`, { recursive: true });
+
+        //for db to store each file info
+        await uploadRepo.createUpload({
+            uploadId: uploadId,
+            fileId: fileData?.fileId,
+            fileName: fileData?.fileName,
+            totalChunks: fileData?.totalChunks,
+            status: 'pending'
+        })
     })
 
     console.log({ uploadSessions })
@@ -112,23 +96,35 @@ export const uploadChunk = async (data: uploadChunkDTO) => {
     if (!fileUploadSession.receivedChunks.has(data.chunkIndex)) {
         fileUploadSession.receivedChunks.add(data.chunkIndex);
         try {
+            if (fileUploadSession.receivedChunks.size === 1) {
+                await updateUploadStatus({
+                    fileId: data?.fileId,
+                    uploadId: data?.uploadId,
+                    status: 'uploading'
+                })
+            }
             await fs.writeFile(
                 `${dirPath}/chunk-${data.chunkIndex}`,
                 data.chunk
             );
+            await updateFileUpload({
+                fileId: data?.fileId,
+                uploadId: data?.uploadId,
+                chunkIndex: data?.chunkIndex
+            })
         } catch (err) {
             console.error("Chunk write failed", err)
             throw err
         }
 
-
-        // console.log(`✅ Chunk ${data.chunkIndex} saved`);
-        // console.log(`Map`, fileUploadSession.receivedChunks)
-
         if (fileUploadSession.receivedChunks.size == fileUploadSession.totalChunks) {
             try {
                 const result = await mergeChunks({ fileId: data?.fileId, basePath: basePath, uploadId: data?.uploadId, fileName: fileUploadSession?.fileName, totalChunks: fileUploadSession.totalChunks })
-                console.log("🚀 ~ uploadChunk ~ result:", result)
+                await updateUploadStatus({
+                    fileId: data?.fileId,
+                    uploadId: data?.uploadId,
+                    status: 'completed'
+                })
             } catch (err) {
                 console.error("Merge failed", err)
                 throw err
@@ -156,7 +152,6 @@ export const mergeChunks = async (data: mergeChunkDTO) => {
 
     for (let i = 0; i < data?.totalChunks; i++) {
         const chunkPath = `uploads/${data?.uploadId}/${data?.basePath}/${data?.fileId}/chunks/chunk-${i}`
-        console.log("Chunk Index", i)
         const readStream = fsNonPromise.createReadStream(chunkPath);
 
         await new Promise((resolve, reject) => {
@@ -175,5 +170,14 @@ export const mergeChunks = async (data: mergeChunkDTO) => {
     }
 }
 
+export const uploadStatus = async (uploadId: string) => {
+    try {
+        const statusData = await getUploadStatus(uploadId);
+        return statusData;
+    } catch (err) {
+        throw new Error("Error in data fetching")
+    }
+}
 
-export const uploadService = { initUpload, uploadChunk, mergeChunks };
+
+export const uploadService = { initUpload, uploadChunk, mergeChunks, uploadStatus };
