@@ -1,6 +1,8 @@
 import multer from "multer";
 
-// storing in memory
 export const upload = multer({
     storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 2 * 1024 * 1024, // 2 MiB max per chunk upload
+    },
 });
