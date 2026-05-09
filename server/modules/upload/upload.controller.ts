@@ -77,3 +77,24 @@ export const chunkUpload = async (req: Request, res: Response) => {
         });
     }
 };
+
+
+export const clearUploadSession = async (req: Request, res: Response) => {
+    try {
+        const { uploadId } = req.query;
+
+        if (!uploadId || typeof uploadId !== "string") {
+            return res.status(400).json({
+                error: "Invalid uploadId"
+            });
+        }
+        const result = await uploadService.clearUploadSession(uploadId);
+
+        res.json(result);
+    } catch (err) {
+        console.error("CONTROLLER ERROR:", err);
+        res.status(500).json({
+            error: (err as Error).message || "Something went wrong",
+        });
+    }
+}

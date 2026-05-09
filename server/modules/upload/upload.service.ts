@@ -179,5 +179,27 @@ export const uploadStatus = async (uploadId: string) => {
     }
 }
 
+export const clearUploadSession = async (uploadId: string) => {
+    try {
+        const folderPath = path.join(
+            process.cwd(),
+            "uploads",
+            uploadId
+        );
 
-export const uploadService = { initUpload, uploadChunk, mergeChunks, uploadStatus };
+        await fs.rm(folderPath, {
+            recursive: true,
+            force: true
+        });
+
+        return {
+            status: 200,
+            uploadId
+        }
+    } catch (err) {
+        throw new Error(`Error in clearing uploadSession for ${uploadId}`)
+    }
+}
+
+
+export const uploadService = { initUpload, uploadChunk, mergeChunks, uploadStatus, clearUploadSession };
