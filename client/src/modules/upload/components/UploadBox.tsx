@@ -1,15 +1,36 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { uploadStore } from "../../../store/uploadStore";
-import { handleFileUpload, handleFileSelection } from "../hooks/useUpload";
+import { handleFileUpload, handleFileSelection, handleCancelUpload } from "../hooks/useUpload";
+import { getUploadSession } from "../utils/uploadSession";
 
 const UploadBox = () => {
     const storeFiles = uploadStore((state) => state.files);
     const dirInputRef = useRef<HTMLInputElement>(null);
+    const [activeUploadId, setActiveUploadId] = useState(
+        getUploadSession()
+    );
 
-    const isUploading = storeFiles.some((file) => {
-        return file.status === 'uploading' || file.status === 'completed'
-    })
+    const isUploadCompleted =
+        storeFiles.length > 0 &&
+        storeFiles.every((file) => {
+            console.log(file.status)
+            return file.status === "completed" || file.status === "failed";
+        });
 
+    const isUploadSessionActive = !!activeUploadId;
+
+    const isUploading = storeFiles.some((file) => file.status === 'uploading')
+
+    useEffect(() => {
+
+        if (isUploadCompleted && storeFiles.length > 0) {
+
+            localStorage.removeItem("active-upload-id");
+
+            setActiveUploadId(null);
+        }
+
+    }, [isUploadCompleted, storeFiles.length]);
     // Set directory attributes safely
     useEffect(() => {
         if (dirInputRef.current) {
@@ -26,32 +47,48 @@ const UploadBox = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex flex-col items-center justify-center border-2 border-dashed border-blue-200 rounded-xl p-6 bg-blue-50 hover:bg-blue-100 transition-colors">
+                <div className={`flex flex-col items-center justify-center border-2 border-dashed border-blue-200 rounded-xl p-6  transition-colors ${isUploadSessionActive ? "bg-gray-50 border-gray-200" : "bg-blue-50 hover:bg-blue-100 border-blue-200"} `}>
                     <label className="cursor-pointer text-center">
-                        <span className="text-blue-600 font-semibold">Select Files</span>
-                        <input type="file" className="hidden" onChange={handleFileSelection} />
+                        <span className={` ${isUploadSessionActive ? "text-gray-300" : "text-blue-600"} font-semibold`}>Select Files</span>
+                        <input type="file" className="hidden" onChange={(e) =>
+                            handleFileSelection(e, setActiveUploadId)
+                        } disabled={isUploadSessionActive} />
                         <p className="text-xs text-gray-400 mt-1">Click to browse</p>
                     </label>
                 </div>
 
-                <div className="flex flex-col items-center justify-center border-2 border-dashed border-purple-200 rounded-xl p-6 bg-purple-50 hover:bg-purple-100 transition-colors">
+                <div className={`flex flex-col items-center justify-center border-2 border-dashed  rounded-xl p-6 ${isUploadSessionActive ? "bg-gray-50 border-gray-200" : "bg-purple-50 hover:bg-purple-100 border-purple-200"}  transition-colors`}>
                     <label className="cursor-pointer text-center">
-                        <span className="text-purple-600 font-semibold">Select Folder</span>
-                        <input type="file" multiple ref={dirInputRef} className="hidden" onChange={handleFileSelection} />
+                        <span className={`${isUploadSessionActive ? "text-gray-300" : "text-purple-600"} font-semibold`}>Select Folder</span>
+                        <input type="file" multiple ref={dirInputRef} className="hidden" onChange={(e) =>
+                            handleFileSelection(e, setActiveUploadId)
+                        } disabled={isUploadSessionActive} />
                         <p className="text-xs text-gray-400 mt-1">Upload directory</p>
                     </label>
                 </div>
             </div>
 
             {storeFiles.length > 0 && (
-                <button
-                    onClick={handleFileUpload}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg transition-all transform active:scale-[0.98]
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <button
+                        onClick={handleFileUpload}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg transition-all transform active:scale-[0.98]
                     disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:shadow-none disabled:transform-none"
-                    disabled={isUploading}
-                >
-                    Start Upload ({storeFiles.length} {storeFiles.length === 1 ? 'file' : 'files'})
-                </button>
+                        disabled={isUploading || isUploadCompleted}
+                    >
+                        Start Upload ({storeFiles.length} {storeFiles.length === 1 ? 'file' : 'files'})
+                    </button>
+                    <button
+                        onClick={() => {
+                            handleCancelUpload(activeUploadId, setActiveUploadId)
+                        }}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg transition-all transform active:scale-[0.98]
+                    disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:shadow-none disabled:transform-none"
+                        disabled={isUploading || isUploadCompleted}
+                    >
+                        Cancel Upload
+                    </button>
+                </div >
             )
             }
 
