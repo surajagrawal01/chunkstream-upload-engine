@@ -1,15 +1,26 @@
 import type { ChunkMeta, UploadStoreFile } from "../../../shared/types/types";
 import { uploadStore } from "../../../store/uploadStore";
-import { handleChunkUpload, initUpload } from "../api/uploadApi";
+import { clearUploadSessionAPI, handleChunkUpload, initUpload } from "../api/uploadApi";
 import type { ProcessedFile, UploadFile } from "../types/upload.types";
 import { createChunks } from "../utils/helper";
+import { clearUploadSession, setUploadSession } from "../utils/uploadSession";
 const processedFiles: ProcessedFile[] = []
 const apiRequestForm: UploadFile[] = []
 const uploadStoreFiles: UploadStoreFile[] = []
 let uploadId: string | undefined = undefined
 
-export const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>) => {
+
+export const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>,
+    setActiveUploadId: React.Dispatch<
+        React.SetStateAction<string | null>
+    >) => {
     try {
+        processedFiles.length = 0;
+        apiRequestForm.length = 0;
+        uploadStoreFiles.length = 0;
+        uploadId = undefined;
+        uploadStore.getState().clearStore();
+
         if (!e.target.files) return null;
         const files = e.target.files;
         const arrayFiles = Array.from(files)
@@ -38,7 +49,7 @@ export const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>
             for (let i = 0; i < chunks.length; i++) {
                 processedChunks[i] = {
                     index: i,
-                    retries: 3,
+                    retries: 0,
                     status: 'pending'
                 }
             }
@@ -56,11 +67,10 @@ export const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>
 
         uploadId = await initUpload(apiRequestForm)
         if (uploadId) {
+            setUploadSession(uploadId)
+            setActiveUploadId(uploadId)
             uploadStore.getState().addFiles(uploadStoreFiles);
         }
-
-        console.log("🚀 ~ handleFileSelection ~ processedFiles:", processedFiles)
-        console.log("🚀 ~ handleFileSelection ~ apiRequestForm:", apiRequestForm)
 
     } catch (err) {
         console.log(err)
@@ -70,15 +80,55 @@ export const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>
 
 
 export const handleFileUpload = async () => {
-    for (let i = 0; i < processedFiles.length; i++) {
-        try {
-            if (uploadId) {
-                const data = await handleChunkUpload(processedFiles[i], uploadId)
-                console.log("🚀 ~ handleFileUpload ~ res:", data)
+    const result = await Promise.all(
+        processedFiles.map(async (file) => {
+            try {
+                if (uploadId) {
+                    if (!uploadId) {
+                        return {
+                            success: false,
+                            fileName: file.fileName
+                        };
+                    }
+
+                    await handleChunkUpload(file, uploadId)
+                    return {
+                        success: true,
+                        fileName: file.fileName
+                    };
+                }
+            } catch (err) {
+                console.log('Error', err);
+                console.log(`File failed: ${file.fileName}`)
+                return {
+                    success: false,
+                    fileName: file.fileName
+                };
             }
-        } catch (err) {
-            console.log('Error', err);
-            console.log(`File failed: ${processedFiles[i].fileName}`)
+        })
+    );
+
+    const allUploadsCompleted = result.every(
+        file => file.success
+    );
+
+    if (allUploadsCompleted) {
+        clearUploadSession()
+    }
+}
+
+export const handleCancelUpload = async (uploadId: string,
+    setActiveUploadId: React.Dispatch<
+        React.SetStateAction<string | null>
+    >) => {
+    try {
+        const data = await clearUploadSessionAPI(uploadId)
+        if (data?.status === 200 && data?.uploadId === uploadId) {
+            clearUploadSession()
+            uploadStore.getState().clearStore()
+            setActiveUploadId(null)
         }
+    } catch (err) {
+        console.log('Error', err);
     }
 }

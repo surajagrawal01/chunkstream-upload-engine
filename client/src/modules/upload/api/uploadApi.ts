@@ -1,10 +1,9 @@
-import axios from "axios"
 import type { ProcessedFile, UploadFile } from "../types/upload.types";
 import { uploadStore } from "../../../store/uploadStore";
-
+import { api } from "../../../lib/axiosInstance";
 export const initUpload = async (data: UploadFile[]) => {
     try {
-        const response = await axios.post('http://localhost:5000/api/upload/init', {
+        const response = await api.post('/api/upload/init', {
             data
         })
         return response?.data?.uploadId
@@ -19,9 +18,9 @@ const uploadSingleChunk = async (
     uploadId: string
 ) => {
     let attempt = 0
-    const MAX_RETRIES = 3
+    const MAX_ATTEMPTS = 3
 
-    while (attempt < MAX_RETRIES) {
+    while (attempt < MAX_ATTEMPTS) {
         const formData = new FormData()
 
         formData.append("file", processedFile.chunks[chunkIndex].blob, "chunk.bin")
@@ -31,10 +30,12 @@ const uploadSingleChunk = async (
         formData.append("fileName", processedFile.fileName)
 
         try {
-            const response = await axios.post(
-                "http://localhost:5000/api/upload/chunk",
-                formData
-            )
+            uploadStore.getState().updateChunk(processedFile.fileId, chunkIndex, {
+                index: chunkIndex,
+                status: "uploading",
+            })
+
+            const response = await api.post("/api/upload/chunk", formData)
 
             const data = response.data
 
@@ -55,8 +56,8 @@ const uploadSingleChunk = async (
                 retries: attempt,
             })
 
-            //if reached to max_retries(3) then finally fail that particular file
-            if (attempt === MAX_RETRIES) {
+            //if reached to max_attempts(3) then finally fail that particular file
+            if (attempt === MAX_ATTEMPTS) {
                 throw new Error(`Chunk ${chunkIndex} failed`)
             }
 
@@ -126,4 +127,13 @@ export const handleChunkUpload = async (
 
         next()
     })
+}
+
+export const clearUploadSessionAPI = async (uploadId: string) => {
+    try {
+        const response = await api.post(`/api/upload/clear?uploadId=${uploadId}`)
+        return response?.data
+    } catch (err) {
+        console.error("❌ Error:", err);
+    }
 }

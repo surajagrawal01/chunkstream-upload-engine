@@ -7,7 +7,8 @@ type UploadStore = {
     addFiles: (files: UploadStoreFile[]) => void,
     updateFileStatus: (fileId: string, status: UploadStatus) => void,
     updateProgress: (fileId: string, progress: number) => void,
-    updateChunk: (fileId: string, chunkIndex: number, data: Partial<ChunkMeta>) => void
+    updateChunk: (fileId: string, chunkIndex: number, data: Partial<ChunkMeta>) => void,
+    clearStore: () => void,
 };
 
 export const uploadStore = create<UploadStore>((set) => ({
@@ -51,6 +52,6 @@ export const uploadStore = create<UploadStore>((set) => ({
                     : file
             )
         }))
-    }
-
+    },
+    clearStore: () => set(() => ({ files: [] }))
 }))
