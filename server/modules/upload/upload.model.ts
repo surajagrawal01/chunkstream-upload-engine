@@ -6,6 +6,9 @@ const uploadSchema = new mongoose.Schema({
     fileId: { type: String, required: true, index: true },
     fileName: { type: String, required: true },
 
+    /** Original client path (e.g. folder/a.mp4 or a.mp4); used to resolve merged file on disk */
+    relativePath: { type: String },
+
     totalChunks: { type: Number, required: true },
 
     uploadedChunks: {
@@ -16,7 +19,7 @@ const uploadSchema = new mongoose.Schema({
 
     status: {
         type: String,
-        enum: ["pending", "uploading", "completed"],
+        enum: ["pending", "uploading", "completed", "failed"],
         default: "pending"
     }
 }, { timestamps: true });
