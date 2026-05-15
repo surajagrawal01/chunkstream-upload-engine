@@ -1,6 +1,35 @@
 import type { ProcessedFile, UploadFile } from "../types/upload.types";
 import { uploadStore } from "../../../store/uploadStore";
 import { api } from "../../../lib/axiosInstance";
+import { CanceledError } from "axios";
+
+export type LibraryItem = {
+    uploadId: string;
+    fileId: string;
+    fileName: string;
+    relativePath?: string;
+    createdAt?: string;
+    updatedAt?: string;
+};
+
+const apiOrigin = () =>
+    (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
+
+/** Public URL for `<video src>` / `<audio src>` (must match API host; CORS enabled on server). */
+export const getStreamUrl = (
+    uploadId: string,
+    fileId: string,
+    attachment: boolean
+) => {
+    const q = attachment ? "?disposition=attachment" : "";
+    return `${apiOrigin()}/api/upload/stream/${encodeURIComponent(uploadId)}/${encodeURIComponent(fileId)}${q}`;
+};
+
+export const fetchCompletedLibrary = async (): Promise<LibraryItem[]> => {
+    const response = await api.get<{ items: LibraryItem[] }>("/api/upload/library");
+    return response.data.items ?? [];
+};
+
 export const initUpload = async (data: UploadFile[]) => {
     try {
         const response = await api.post('/api/upload/init', {
@@ -15,7 +44,8 @@ export const initUpload = async (data: UploadFile[]) => {
 const uploadSingleChunk = async (
     processedFile: ProcessedFile,
     chunkIndex: number,
-    uploadId: string
+    uploadId: string,
+    signal?: AbortSignal
 ) => {
     let attempt = 0
     const MAX_ATTEMPTS = 3
@@ -35,9 +65,11 @@ const uploadSingleChunk = async (
                 status: "uploading",
             })
 
-            const response = await api.post("/api/upload/chunk", formData)
+            const response = await api.post("/api/upload/chunk", formData, {
+                signal,
+            });
 
-            const data = response.data
+            const data = response.data;
 
             uploadStore.getState().updateChunk(data.fileId, data.index, {
                 index: data.index,
@@ -46,7 +78,10 @@ const uploadSingleChunk = async (
 
             return
         } catch (err) {
-            console.log("error", err)
+            if (err instanceof CanceledError) {
+                throw err;
+            }
+            console.log("error", err);
             //To increase retries attempt for each chunk
             attempt++
 
@@ -70,7 +105,8 @@ const uploadSingleChunk = async (
 
 export const handleChunkUpload = async (
     processedFile: ProcessedFile,
-    uploadId: string
+    uploadId: string,
+    signal?: AbortSignal
 ) => {
     const CONCURRENCY = 3
     let active = 0
@@ -112,11 +148,18 @@ export const handleChunkUpload = async (
                 const chunkIndex = currentIndex++
                 active++
 
-                uploadSingleChunk(processedFile, chunkIndex, uploadId)
+                uploadSingleChunk(processedFile, chunkIndex, uploadId, signal)
                     .catch((err) => {
-                        hasError = true
-                        uploadStore.getState().updateFileStatus(processedFile.fileId, "failed")
-                        reject(err)
+                        if (signal?.aborted || err instanceof CanceledError) {
+                            hasError = true;
+                            reject(err);
+                            return;
+                        }
+                        hasError = true;
+                        uploadStore
+                            .getState()
+                            .updateFileStatus(processedFile.fileId, "failed");
+                        reject(err);
                     })
                     .finally(() => {
                         active--

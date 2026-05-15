@@ -4,11 +4,13 @@ import { clearUploadSessionAPI, handleChunkUpload, initUpload } from "../api/upl
 import type { ProcessedFile, UploadFile } from "../types/upload.types";
 import { createChunks } from "../utils/helper";
 import { clearUploadSession, setUploadSession } from "../utils/uploadSession";
+
 const processedFiles: ProcessedFile[] = []
 const apiRequestForm: UploadFile[] = []
 const uploadStoreFiles: UploadStoreFile[] = []
 let uploadId: string | undefined = undefined
 
+let chunkUploadAbortController: AbortController | null = null
 
 export const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>,
     setActiveUploadId: React.Dispatch<
@@ -79,48 +81,55 @@ export const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>
 }
 
 
-export const handleFileUpload = async () => {
-    const result = await Promise.all(
-        processedFiles.map(async (file) => {
-            try {
-                if (uploadId) {
-                    if (!uploadId) {
+export const handleFileUpload = async (onBatchFinished?: () => void) => {
+    chunkUploadAbortController = new AbortController();
+    const signal = chunkUploadAbortController.signal;
+
+    try {
+        const result = await Promise.all(
+            processedFiles.map(async (file) => {
+                try {
+                    if (uploadId) {
+                        await handleChunkUpload(file, uploadId, signal);
                         return {
-                            success: false,
-                            fileName: file.fileName
+                            success: true,
+                            fileName: file.fileName,
                         };
                     }
-
-                    await handleChunkUpload(file, uploadId)
                     return {
-                        success: true,
-                        fileName: file.fileName
+                        success: false,
+                        fileName: file.fileName,
+                    };
+                } catch (err) {
+                    console.log("Error", err);
+                    console.log(`File failed: ${file.fileName}`);
+                    return {
+                        success: false,
+                        fileName: file.fileName,
                     };
                 }
-            } catch (err) {
-                console.log('Error', err);
-                console.log(`File failed: ${file.fileName}`)
-                return {
-                    success: false,
-                    fileName: file.fileName
-                };
-            }
-        })
-    );
+            })
+        );
 
-    const allUploadsCompleted = result.every(
-        file => file.success
-    );
+        const allUploadsCompleted = result.every((file) => file.success);
 
-    if (allUploadsCompleted) {
-        clearUploadSession()
+        if (allUploadsCompleted) {
+            clearUploadSession();
+        }
+    } finally {
+        chunkUploadAbortController = null;
+        onBatchFinished?.();
     }
-}
+};
 
-export const handleCancelUpload = async (uploadId: string,
-    setActiveUploadId: React.Dispatch<
-        React.SetStateAction<string | null>
-    >) => {
+export const handleCancelUpload = async (
+    uploadId: string | null,
+    setActiveUploadId: React.Dispatch<React.SetStateAction<string | null>>
+) => {
+    chunkUploadAbortController?.abort();
+    if (!uploadId) {
+        return;
+    }
     try {
         const data = await clearUploadSessionAPI(uploadId)
         if (data?.status === 200 && data?.uploadId === uploadId) {
