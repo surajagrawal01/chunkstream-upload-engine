@@ -19,8 +19,18 @@ export interface initUploadModel {
     uploadId: string,
     fileId: string,
     fileName: string,
+    relativePath: string,
     totalChunks: number,
     status: 'pending' | 'uploading' | 'completed' | 'failed'
+}
+
+export interface LibraryUploadRow {
+    uploadId: string;
+    fileId: string;
+    fileName: string;
+    relativePath?: string;
+    createdAt?: Date;
+    updatedAt?: Date;
 }
 
 export interface updateFileUploadStatus {

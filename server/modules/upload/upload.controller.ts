@@ -1,6 +1,36 @@
 import { Request, Response } from "express";
 import { uploadService } from "./upload.service.js";
 
+export const listCompletedLibrary = async (_req: Request, res: Response) => {
+    try {
+        const items = await uploadService.listLibrary();
+        return res.status(200).json({ items });
+    } catch (err) {
+        console.error("CONTROLLER ERROR:", err);
+        return res.status(500).json({
+            error: (err as Error).message || "Something went wrong",
+        });
+    }
+};
+
+export const streamMergedFileHandler = async (req: Request, res: Response) => {
+    try {
+        const uploadId = req.params.uploadId;
+        const fileId = req.params.fileId;
+        if (typeof uploadId !== "string" || typeof fileId !== "string") {
+            return res.status(400).json({ error: "Missing uploadId or fileId" });
+        }
+        await uploadService.streamMergedFile(uploadId, fileId, req, res);
+    } catch (err) {
+        console.error("CONTROLLER ERROR:", err);
+        if (!res.headersSent) {
+            return res.status(500).json({
+                error: (err as Error).message || "Something went wrong",
+            });
+        }
+    }
+};
+
 export const uploadStatus = async (req: Request, res: Response) => {
     try {
         const { uploadId } = req.body;
